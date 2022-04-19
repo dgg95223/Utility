@@ -11,19 +11,39 @@ def plot(x, y, plot_type='single', plot_mode='line', **setting):
     '''
     default_key = ['title', 'xlabel', 'ylabel', 'plot_name']
     advanced_key = ['xlim', 'ylim']
-    default_dict = {'title':'unname', 'xlabel':'X Axis', 'ylabel':'Y Axis', 'plot_name':'unname'}
+    default_dict = {'title':'notitle', 'xlabel':'X Axis', 'ylabel':'Y Axis', 'plot_name':'noname.png'}
+
+    input_keys = []
+
+    for key in setting:
+        input_keys.append(key)
+
+    for key in input_keys:
+        if key not in default_key:
+            setting[key] = default_dict[key]
 
     if plot_type  == 'single':
         fig, ax = plt.subplots()
-        ax.plot(x,y)
-        ax.set_xlabel(setting[['xlabel']])
-        ax.set_ylabel(setting[['ylabel']])
+        if plot_mode == 'line':
+            ax.plot(x,y)
+        elif plot_mode == 'scatter':
+            ax.scatter(x,y)
+        else:
+            raise NotImplemented
+        ax.set_xlabel(setting['xlabel'])
+        ax.set_ylabel(setting['ylabel'])
         ax.set_title(setting['title'])
+        if 'xlim' in input_keys:
+            ax.set_xlim(setting['xlim'])
+        elif 'ylim' in input_keys:
+            ax.set_ylim(setting['ylim'])
+        
         fig.savefig(setting['plot_name'])
 
     elif plot_type == 'sub':
+        plots_shape = setting['plots_shape']
         n_plot = len(y)
-        n_col_max = 3
+        n_col_max = plots_shape[1]
         if n_plot <= 3:
             n_row = 1
             n_col = n_plot
@@ -37,14 +57,16 @@ def plot(x, y, plot_type='single', plot_mode='line', **setting):
             for j in range(0, n_col):
                 if plot_mode == 'line':
                     axs[i,j].plot(x,y[i*n_col_max+j])
-                    axs[i,j].set_xlabel(setting[['xlabel']])
-                    axs[i,j].set_ylabel(setting[['ylabel']])
                 elif plot_mode == 'scatter':
-                    axs[i,j].scatter(x,y[i*n_col_max+j])
-                    axs[i,j].set_xlabel(setting[['xlabel']])
-                    axs[i,j].set_ylabel(setting[['ylabel']])                    
+                    axs[i,j].scatter(x,y[i*n_col_max+j])                    
                 else:
                     raise NotImplemented
+                axs[i,j].set_xlabel(setting['xlabel'])
+                axs[i,j].set_ylabel(setting['ylabel'])
+                if 'xlim' in input_keys:
+                    axs[i,j].set_xlim(setting['xlim'])
+                elif 'ylim' in input_keys:
+                    axs[i,j].set_ylim(setting['ylim'])
         
         fig.savefig(setting['plot_name'])
     else:
@@ -56,4 +78,10 @@ def printm(data):
 
 def printcm(data):
     '''Print a complex matrix in a neat way'''
+    return NotImplemented
+
+def read_txt(filename, usecol=0):
+    return NotImplemented
+
+def read_xyz(filename):
     return NotImplemented
