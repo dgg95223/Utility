@@ -1,3 +1,4 @@
+from turtle import pu
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -83,5 +84,70 @@ def printcm(data):
 def read_txt(filename, usecol=0):
     return NotImplemented
 
-def read_xyz(filename):
-    return NotImplemented
+def read_xyz(filename, index=None, output='regular'):
+    '''
+    index: '-1' refers to the last geometry
+           'N' any integar larger than 0, refers to the N^th geometry
+           '0' refers to all geometry
+    output mode: 'regular' output atom number, atom symbols, a np array of coordinates
+                 'pyscf' output atom number, atom symbols, a string include atom symbols and coordinates    
+    '''
+    if index is None:                                                                                           
+        index = -1  # read the last geometry as default
+    elif index > 0:
+        index = index - 1
+    elif index == 0:
+        read_all = True
+
+    with open(filename,'r') as xyz:
+        molecules = xyz.readlines()
+    
+    for i in range(0, len(molecules)):
+        if molecules[i] == '\n':
+            molecules.pop(i)
+    
+    atoms_num = int(molecules[0])
+    atom_symbol = np.loadtxt(filename, usecols=0, dtype='str', skiprows=2, max_rows=atoms_num+2)
+
+    assert len(atom_symbol) == atoms_num, 'There is somthing wrong with the format of xyz file'
+    
+    if index == -1:
+        # read the last geometry
+        if output == 'regular':
+            _geom = []
+            for i in range(0, atoms_num):
+                _geom_ = molecules[index * (atoms_num + 2) + 2 + i].split()
+                _geom.append(_geom_[1:])
+            _geom =np.array(_geom, dtype=np.float64)
+        elif output == 'pycsf':
+            _geom = ''.join(molecules[index * atoms_num:])
+    elif index == 0:  ##################################################### to be done 2022/4/25
+        # read all geometiers
+        geoms = []
+        geoms_num = len(np.loadtxt(filename, usecols=0, dtype='str')) // (atoms_num + 1)
+        for i in range(0, geoms_num):
+            _geom = ''.join(molecules[index * atoms_num:])
+            geoms.append(_geom)
+    elif molecules[(index + 1) * (atoms_num + 2) - 1][-1] == '\n':
+        # read the specified geometry
+        _geom = ''.join(molecules[index * (atoms_num + 2) + 2 :(index + 1) * (atoms_num + 2)])[:-1]
+    else:
+        _geom = ''.join(molecules[index * (atoms_num + 2) + 2 :(index + 1) * (atoms_num + 2)])
+
+
+        
+    
+    return 
+
+def read_json(filename):
+    '''from json file to python dict'''
+    import json
+    with open(filename,'r') as file:
+        json_setting = json.load(file)
+    return json_setting
+
+def write_json(json_dict, filename):
+    '''from python dict to json file'''
+    import json
+    with open(filename,'w') as file:
+        json.dump(json_dict, file, indent=4)
