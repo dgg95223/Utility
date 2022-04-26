@@ -1,5 +1,6 @@
 from turtle import pu
 import matplotlib
+from matplotlib.backend_bases import MouseEvent
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -87,57 +88,82 @@ def read_txt(filename, usecol=0):
 def read_xyz(filename, index=None, output='regular'):
     '''
     index: '-1' refers to the last geometry
-           'N' any integar larger than 0, refers to the N^th geometry
+           'N' any integar larger than 0, refers to the N^th geometry, '-' refers to count the geometry in reversed order
            '0' refers to all geometry
-    output mode: 'regular' output atom number, atom symbols, a np array of coordinates
-                 'pyscf' output atom number, atom symbols, a string include atom symbols and coordinates    
+    output mode: 'regular' output atom number, atom symbols, a np.array of coordinates
+                 'pyscf' output atom number, atom symbols, a string includes atom symbols and coordinates  
+    
+    Current version only support the geometries of the same molecule --2022/4/26
     '''
-    if index is None:                                                                                           
-        index = -1  # read the last geometry as default
-    elif index > 0:
-        index = index - 1
-    elif index == 0:
-        read_all = True
-
     with open(filename,'r') as xyz:
         molecules = xyz.readlines()
     
-    for i in range(0, len(molecules)):
+    # clear unnecessary empty rows
+    reverse_i = list(range(0, len(molecules)))[::-1]
+    for i in reverse_i:
         if molecules[i] == '\n':
-            molecules.pop(i)
-    
-    atoms_num = int(molecules[0])
-    atom_symbol = np.loadtxt(filename, usecols=0, dtype='str', skiprows=2, max_rows=atoms_num+2)
+            if (len(molecules[i-1]) > 10) or (len(molecules[i-1]) == 1):
+                molecules.pop(i)
 
-    assert len(atom_symbol) == atoms_num, 'There is somthing wrong with the format of xyz file'
+    # get the number of atoms in each geometry
+    atoms_num = []
+    ii = 0
+    while ii < len(molecules) :
+        atoms_num.append(int(molecules[ii]))
+        ii += (2 + int(molecules[ii]))
+        if ii == len(molecules):
+            break
+
+    # get the amount of geometries
+    geoms_num = len(atoms_num)
+    atom_symbol = []
+    # get the symbol of atoms in each geometry
+    _atom_symbol = np.loadtxt(filename, usecols=0, dtype='str')
+    start = 1
+    for i in range(0, geoms_num):    
+        end = start + atoms_num[i]
+        atom_symbol.append(_atom_symbol[start:end])
+        start = end + 1
+
+    if index is None:                                                                                           
+        index = -1  # read the last geometry as default
+    elif index > 0: # read the N^th geometry
+        index = index - 1
+    elif index <= -1:
+        index = geoms_num + index 
+    elif index == 0: # read all geometries
+        pass
     
-    if index == -1:
-        # read the last geometry
+    if index == 0:
+        # read all geometries
+        geoms = []
+        for i in range(0, geoms_num):
+            if output == 'regular':
+                _geom = []
+                for j in range(0, atoms_num[i]):
+                    _geom_ = molecules[ sum(atoms_num[:i+1]) +(i + 1) * 2 + j].split()
+                    _geom.append(_geom_[1:])
+                    print(_geom_)
+                # print(_geom)
+                _geom =np.array(_geom, dtype=np.float64)
+            elif output == 'pyscf':
+                _geom = ''.join(molecules[i * (atoms_num[i] + 2) + 2:(i + 1) * (atoms_num[i] + 2)])
+            geoms.append(_geom)
+    else: 
+        # index == 'N' read the N^th geometry
         if output == 'regular':
             _geom = []
-            for i in range(0, atoms_num):
-                _geom_ = molecules[index * (atoms_num + 2) + 2 + i].split()
+            for j in range(0, atoms_num[index][0]):
+                _geom_ = molecules[index * (atoms_num[index] + 2) + 2 + j].split()
                 _geom.append(_geom_[1:])
             _geom =np.array(_geom, dtype=np.float64)
-        elif output == 'pycsf':
-            _geom = ''.join(molecules[index * atoms_num:])
-    elif index == 0:  ##################################################### to be done 2022/4/25
-        # read all geometiers
-        geoms = []
-        geoms_num = len(np.loadtxt(filename, usecols=0, dtype='str')) // (atoms_num + 1)
-        for i in range(0, geoms_num):
-            _geom = ''.join(molecules[index * atoms_num:])
-            geoms.append(_geom)
-    elif molecules[(index + 1) * (atoms_num + 2) - 1][-1] == '\n':
-        # read the specified geometry
-        _geom = ''.join(molecules[index * (atoms_num + 2) + 2 :(index + 1) * (atoms_num + 2)])[:-1]
-    else:
-        _geom = ''.join(molecules[index * (atoms_num + 2) + 2 :(index + 1) * (atoms_num + 2)])
-
-
-        
+        elif output == 'pyscf':
+            _geom = ''.join(molecules[index * (atoms_num[index] + 2) + 2:(index + 1) * (atoms_num[index] + 2)])
+        geoms = _geom
+        atoms_num = atoms_num[index]
+        atom_symbol =atom_symbol[index]
     
-    return 
+    return atoms_num, atom_symbol, geoms
 
 def read_json(filename):
     '''from json file to python dict'''
