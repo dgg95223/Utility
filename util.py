@@ -90,8 +90,6 @@ def read_xyz(filename, index=None, output='regular'):
            '0' refers to all geometry
     output mode: 'regular' output atom number, atom symbols, a np.array of coordinates
                  'pyscf' output atom number, atom symbols, a string includes atom symbols and coordinates  
-    
-    Current version only support the geometries of the same molecule --2022/4/26
     '''
     with open(filename,'r') as xyz:
         molecules = xyz.readlines()
