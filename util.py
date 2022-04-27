@@ -1,6 +1,4 @@
-from turtle import pu
 import matplotlib
-from matplotlib.backend_bases import MouseEvent
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -126,14 +124,14 @@ def read_xyz(filename, index=None, output='regular'):
         start = end + 1
 
     if index is None:                                                                                           
-        index = -1  # read the last geometry as default
-    elif index > 0: # read the N^th geometry
-        index = index - 1
-    elif index <= -1:
-        index = geoms_num + index 
+        _index = -1  # read the last geometry as default
     elif index == 0: # read all geometries
         pass
-    
+    elif index > 0: # read the N^th geometry
+        _index = index - 1
+    elif index <= -1:
+        _index = geoms_num + index 
+
     if index == 0:
         # read all geometries
         geoms = []
@@ -141,27 +139,35 @@ def read_xyz(filename, index=None, output='regular'):
             if output == 'regular':
                 _geom = []
                 for j in range(0, atoms_num[i]):
-                    _geom_ = molecules[ sum(atoms_num[:i+1]) +(i + 1) * 2 + j].split()
-                    _geom.append(_geom_[1:])
-                    print(_geom_)
-                # print(_geom)
+                    _geom_ = molecules[sum(np.add(atoms_num,2)[:i]) + 2 + j].split()[1:4]
+                    _geom.append(_geom_)
                 _geom =np.array(_geom, dtype=np.float64)
             elif output == 'pyscf':
-                _geom = ''.join(molecules[i * (atoms_num[i] + 2) + 2:(i + 1) * (atoms_num[i] + 2)])
+                _geom = ''
+                for j in range(0, atoms_num[i]):
+                    _col = molecules[sum(np.add(atoms_num,2)[:i]) + 2 + j].split()[0:4]
+                    _geom_ = '%2s %12s %12s %12s\n'%(_col[0], _col[1], _col[2], _col[3])
+                    _geom += _geom_
+                    # _geom = ''.join(molecules[sum(np.add(atoms_num,2)[:i]) + 2: sum(np.add(atoms_num,2)[:i]) + 2 + atoms_num[i]])
             geoms.append(_geom)
     else: 
         # index == 'N' read the N^th geometry
         if output == 'regular':
             _geom = []
-            for j in range(0, atoms_num[index][0]):
-                _geom_ = molecules[index * (atoms_num[index] + 2) + 2 + j].split()
-                _geom.append(_geom_[1:])
+            for j in range(0, atoms_num[_index]):
+                _geom_ = molecules[sum(np.add(atoms_num,2)[:_index]) + 2 + j].split()
+                _geom.append(_geom_[1:4])
             _geom =np.array(_geom, dtype=np.float64)
         elif output == 'pyscf':
-            _geom = ''.join(molecules[index * (atoms_num[index] + 2) + 2:(index + 1) * (atoms_num[index] + 2)])
+            _geom = ''
+            for j in range(0, atoms_num[_index]):
+                _col = molecules[sum(np.add(atoms_num,2)[:_index]) + 2 + j].split()[0:4]
+                _geom_ = '%2s %12s %12s %12s\n'%(_col[0], _col[1], _col[2], _col[3])
+                _geom += _geom_
+            # _geom = ''.join(molecules[sum(np.add(atoms_num,2)[:_index]) + 2: sum(np.add(atoms_num,2)[:_index]) + 2 + atoms_num[_index]])
         geoms = _geom
-        atoms_num = atoms_num[index]
-        atom_symbol =atom_symbol[index]
+        atoms_num = atoms_num[_index]
+        atom_symbol =atom_symbol[_index]
     
     return atoms_num, atom_symbol, geoms
 
