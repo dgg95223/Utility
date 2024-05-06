@@ -169,6 +169,30 @@ def read_xyz(filename, index=None, output='regular'):
     
     return atoms_num, atom_symbol, geoms
 
+def read_xyz_std(filename):
+    '''
+    Read the molecular information from the standard xyz files
+    '''
+    mol = {}
+    with open(filename,'r') as xyz:
+        molecule = xyz.readlines()
+
+    atom_num = np.int64(molecule[0])
+
+    atomic_prop          = molecule[2: atom_num + 2]
+
+    atom_symbol          = np.loadtxt(atomic_prop, usecols=0, dtype='str')
+    atom_coord           = np.loadtxt(atomic_prop, usecols=(1,2,3), dtype=np.float64)    
+    atom_geom_           = np.loadtxt(atomic_prop, usecols=(0,1,2,3), dtype='str')
+    atom_geom            = ''.join(['%2s %15s %15s %15s\n'%(i[0], i[1], i[2], i[3]) for i in atom_geom_])
+
+    mol['atom_num']    = atom_num
+    mol['atom_coord']  = atom_coord
+    mol['atom_geom']   = atom_geom
+    mol['atom_sym']    = atom_symbol
+
+    return mol
+
 def read_json(filename):
     '''from json file to python dict'''
     import json
