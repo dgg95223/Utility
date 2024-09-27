@@ -75,6 +75,39 @@ class Gaussian():
 
         return self.ES
 
+    def get_nmr_results(self, isotope=False):
+        output = self.out
+
+        inmr = None
+        for ii,i in enumerate(output):
+            if 'Atom                 a.u.       MegaHertz       Gauss      10(-4) cm-1' in i:
+                inmr_iso = ii + 1
+            if ' Isotropic Fermi Contact Couplings [a_f](MHz):' in i:
+                inmr = ii + 1
+            if 'NAtoms' in i:
+                n_atom = int(i.split()[1]) 
+        if isotope is True:
+            inmr = inmr_iso
+
+        Fermi_couplings = {}
+        atom_sym = np.loadtxt(output[inmr:inmr+n_atom],usecols=1,dtype=str)                     
+
+        iso_Fermi_coup_mhz = np.loadtxt(output[inmr:inmr+n_atom],usecols=2,dtype=np.float64)     # unit a.u.
+        Fermi_couplings['mhz'] = iso_Fermi_coup_mhz
+
+        if isotope is True:
+            iso_Fermi_coup_au = np.loadtxt(output[inmr:inmr+n_atom],usecols=2,dtype=np.float64)     # unit a.u.
+            iso_Fermi_coup_mhz = np.loadtxt(output[inmr:inmr+n_atom],usecols=3,dtype=np.float64)    # unit megahentz
+            iso_Fermi_coup_gauss = np.loadtxt(output[inmr:inmr+n_atom],usecols=4,dtype=np.float64)  # unit gauss
+            iso_Fermi_coup_wn = np.loadtxt(output[inmr:inmr+n_atom],usecols=5,dtype=np.float64)     # unit 10(-4) cm^-1
+            Fermi_couplings['au'] = iso_Fermi_coup_au
+            Fermi_couplings['mhz'] = iso_Fermi_coup_mhz
+            Fermi_couplings['gauss'] = iso_Fermi_coup_gauss
+            Fermi_couplings['wn'] = iso_Fermi_coup_wn
+
+        return atom_sym, Fermi_couplings
+
+
 class QChem():# not finished
     '''
     This is a class of methods for parsing output files, '.out', of Q-Chem package
@@ -89,15 +122,25 @@ class QChem():# not finished
         self.have_error = None
 
     def get_opt_geom(self): 
+        ilast = 0
+
         igeom = []
+        mol = {}
+
         output = self.out    
         for ii, i in enumerate(output):
-            if 'NAtoms' in i:
-                n_atom = int(output[ii+1].split()[0])
+            if 'Standard Nuclear Orientation (Angstroms)' in i:
+                igeom.append(ii)
             if '**  OPTIMIZATION CONVERGED  **' in i:
-                igeom.append(ii+5)
+                ilast = ii
+            if 'Nuclear Repulsion Energy =' in i:
+                i_n_atom = ii - 2
+        
+        assert ilast != 0, 'Geometry optimization is not converged'
+        
+        n_atom = np.int64(output[i_n_atom].split()[0])
 
-        ilast_start = igeom[-1]
+        ilast_start = igeom[-1] + 3
         ilast_end   = ilast_start + n_atom
         last_geom = []
         atom_sym = []
@@ -105,7 +148,11 @@ class QChem():# not finished
             last_geom.append(output[i].split()[2:])
             atom_sym.append(output[i].split()[1])
         geom     = last_geom
-        return n_atom,atom_sym,np.array(geom,dtype=np.float64)
+
+        mol['atom_sym']  = atom_sym
+        mol['atom_num']  = n_atom
+        mol['atom_coord'] = np.array(geom,dtype=np.float64)
+        return mol
 
     def diagnolizer(self): # not finished
         output = self.out
@@ -288,6 +335,10 @@ class QChem():# not finished
                 have_sym = True
             if 'Number of orthogonalized atomic orbitals' in i: # The format change when the symmetry information is print out
                 n_MO = np.array([j for j in re.split(' |\n',i) if j ][-1],dtype=np.int64)
+            if 'Ground-State Mulliken Net Atomic Charges' in i:
+                ipop_start = ii + 4
+            if ' of atomic charges' in i:
+                ipop_end = ii - 1
         n_MO_occ = n_elec[0]
         n_MO_occ_ = n_MO_occ // 8
         if n_MO_occ_ * 8 < n_MO_occ:
@@ -318,12 +369,21 @@ class QChem():# not finished
         e_homo = MOs_occ[-1]
         e_lumo = MOs_vir[0]
 
+        atom_charge = np.loadtxt(output[ipop_start:ipop_end],usecols=2)
+        atom_sym = np.loadtxt(output[ipop_start:ipop_end],usecols=1,dtype=str)
+        atom_sym = ['%d_%s'%(i,atom_sym[i-1]) for i in range(1,1+len(atom_sym))]
+        atom_char = {}
+        for ii,i in enumerate(atom_sym):
+            atom_char[i] = atom_charge[ii]
+        
+
         self.GS['gs_energy'] = energy   # eV
         self.GS['n_elecs']   = n_elec
         self.GS['E_mo_occ']  = MOs_occ  # eV
         self.GS['E_mo_vir']  = MOs_vir  # eV
         self.GS['E_homo']    = e_homo
         self.GS['E_lumo']    = e_lumo
+        self.GS['atom_char'] = atom_char # Mulliken population
 
         return self.GS
     
@@ -396,11 +456,49 @@ class QChem():# not finished
         else:
             ec =  '%10.6f'%(np.float64(coupling)*au2ev)
         return ec 
+    
+
+    def check_cdftci_state(self, n_frag1=None, n_frag2=None, ifrag=1): # Up to 9/27/2024, this function can only check the statu of the first and second fragment
+        '''
+        Check if the cdft setting in cdft-ci job is correct
+        '''
+        output = self.out
+        assert n_frag1 is not None, 'The number of atoms in fragment 1 must be set.'
+        istart = []
+        iend   = []
+        for ii, i in enumerate(output):
+            if '         Atom      Excess Electrons     Population (a.u.)    Net Spin' in i:
+                istart.append(ii+1)
+            if 'SCF time' in i:
+                iend.append(ii-3)
+
+        n_state = len(istart)
+        n_atom = iend[0] - istart[0] + 1
+        istart = np.array(istart)
+        iend   = np.array(iend)
+
+        if ifrag == 1:
+            istart_ = 0
+            iend_   = n_frag1
+        elif ifrag == 2:
+            assert n_frag2 is not None, 'The number of atoms of fragment 2 must be set.'
+            istart_ = n_frag1
+            iend_   = n_frag1 + n_frag2
+
+        for i in range(0,n_state):
+            prop = np.loadtxt(output[istart[i]:istart[i]+n_atom],usecols=(2,4))
+            spin = prop[:,1]
+            char = prop[:,0]
+            print('The net excess electron of frag %d in state %d is: %8.6f'%(ifrag,i+1,sum(char[istart_:iend_])))
+            print('The net spin of frag %d in state %d is: %8.6f\n'%(ifrag,i+1,sum(spin[istart_:iend_])))
+
+
     def get_binding_energy(self):
         '''
         Read binding energy and BSSE errors from BSSE jobs, dict
         '''
         return
+    
 if __name__ == '__main__':
     dft_ = '/home/jingheng/MO_DGNN/data/qm9/b3lyp_631+gd/input/dft/qm9_dft_111111.out'
     tddft_ = '/home/jingheng/MO_DGNN/data/qm9/b3lyp_631+gd/input/tddft/qm9_tddft_111111.out'

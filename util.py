@@ -193,6 +193,19 @@ def read_xyz_std(filename):
 
     return mol
 
+def write_xyz_std(mol, filename=None):
+    if filename is not None:
+        pass
+    else:
+        filename = 'mol.xyz'
+
+    with open(filename,'w') as f:
+        f.write('%d\n\n'%mol['atom_num'])
+        for i in range(0, mol['atom_num']):
+            coord = '%s %f %f %f\n'%(mol['atom_sym'][i], mol['atom_coord'][i][0], mol['atom_coord'][i][1], mol['atom_coord'][i][2])
+            f.write(coord)
+    print("The xyz file is '%s'."%filename)
+
 def read_json(filename):
     '''from json file to python dict'''
     import json
@@ -205,3 +218,28 @@ def write_json(json_dict, filename):
     import json
     with open(filename,'w') as file:
         json.dump(json_dict, file, indent=4)
+
+def rotate_mol(coords, rot_x=0, rot_y=0, rot_z=0, order='xyz'):        
+    '''
+      rotate molecule, unit: degree, defaultly, the operation follows the order of x-y-z
+    '''
+    rot_z_ = rot_z / 180 * np.pi # change the unit of degree to rad
+    z_rot_tm = np.array([[np.cos(rot_z_), -np.sin(rot_z_), 0],[np.sin(rot_z_), np.cos(rot_z_), 0], [0,0,1]])
+    rot_x_ = rot_x / 180 * np.pi
+    x_rot_tm = np.array([[1,0,0], [0, np.cos(rot_x_), -np.sin(rot_x_)],[0, np.sin(rot_x_), np.cos(rot_x_)]])
+    rot_y_ = rot_y /180 * np.pi
+    y_rot_tm = np.array([[np.cos(rot_y_), 0, np.sin(rot_y_)],[0,1,0], [-np.sin(rot_y_), 0, np.cos(rot_y_)]])
+    tr_order = {'x':x_rot_tm, 'y':y_rot_tm, 'z':z_rot_tm} 
+    coords = np.einsum('ij,jk,kl,lm->im', coords, tr_order[order[0]], tr_order[order[1]], tr_order[order[2]])
+    
+    return  coords
+
+def translate_mol(coords, trans_x=0, trans_y=0, trans_z=0):
+    '''
+      translate molecule, unit: angstrom
+    '''
+    trans = [trans_x, trans_y, trans_z]
+    for i in range(0,3):
+        coords[:,i] = coords[:,i] + trans[i]
+
+    return coords
