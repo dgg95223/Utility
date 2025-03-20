@@ -73,8 +73,13 @@ def plot(x, y, plot_type='single', plot_mode='line', **setting):
         raise NotImplemented
 
 def printm(data):
-    '''Print a matrix in a neat  way'''
-    return NotImplemented
+    '''
+      print the matrix in a human-friendly format
+    '''
+    m_shape = mat.shape
+    for i in range(0,m_shape[0]):
+        row = ' '.join(['%12.8f'%j for j in mat[i]])
+        print(row)
 
 def printcm(data):
     '''Print a complex matrix in a neat way'''
